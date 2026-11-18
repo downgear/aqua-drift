@@ -6,7 +6,8 @@ smash glass bricks, slip through moving pillar gaps, and travel as far as you ca
 
 ![Aqua Drift](docs/screenshot.png)
 
-**Play in the browser:** https://downgear.github.io/aqua-drift/  
+**Play in the browser:** https://downgear.github.io/aqua-drift/
+
 **Download:** see [Releases](https://github.com/downgear/aqua-drift/releases).
 Unzip it and open `index.html`; no install or server is needed.
 
