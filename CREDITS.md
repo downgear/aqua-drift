@@ -11,6 +11,7 @@ platform) is drawn live in code.
 | `assets/bg.jpg` | "Nature Water" (underwater surface), StockSnap: https://stocksnap.io/photo/nature-water-NJYSFZJTG7 | CC0 |
 | `assets/glass.jpg` | "Bubbles Underwater", StockSnap: https://stocksnap.io/photo/bubbles-underwater-EPDUCJ74L1 | CC0 |
 | `assets/pillar.jpg` | "Nature Water" (bubbles), StockSnap: https://stocksnap.io/photo/nature-water-XVXG899NFJ | CC0 |
+| `assets/butterfly.png` | *Charaxes alticola* museum specimen, Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Charaxes_alticola.jpg | CC0 |
 
 ## Special thanks
 

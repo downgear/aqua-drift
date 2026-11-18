@@ -1,7 +1,7 @@
 /* Aqua Drift — a Frutiger Aero brick-breaker side-scroller.
  * The fish rides inside a glass bubble (the ball). The platform is a
  * Windows 7 style scrollbar thumb. Left/Right scrolls the stage; the
- * screen edges push the fish along.
+ * the camera and scrollbar platform stay tethered to the fish.
  */
 (() => {
   'use strict';
@@ -16,7 +16,12 @@
   const ARROW_W = 36;
   const FISH_R = 33;
   const SCROLL_SPEED = 420;
-  const LEASH = 0.34;            // fish must stay within this fraction of the view width from the centre
+  const CAMERA_LEASH = 0.30;     // half-width of the camera's allowed zone around screen centre
+  const PADDLE_LEASH = 300;      // maximum horizontal distance between fish and platform centre
+  const START_WALL_X = 72;
+  const WALL_W = 58;
+  const CEILING_Y = 36;
+  const CEILING_H = 44;
   const TAU = Math.PI * 2;
 
   const BRICK_COLORS = ['#25c4f5', '#8fe04a', '#3f8cff', '#22d6b4', '#ffb43d', '#6fe0ff'];
@@ -26,11 +31,10 @@
   const canvas = $('game');
   const ctx = canvas.getContext('2d');
   const ui = {
-    hud: $('hud'), menu: $('menu'), pause: $('pause'), clear: $('clear'), over: $('over'),
+    hud: $('hud'), menu: $('menu'), pause: $('pause'), over: $('over'),
     score: $('score'), lives: $('lives'), progress: $('progress'), stageLabel: $('stageLabel'),
     bestMenu: $('bestMenu'), bestOver: $('bestOver'), finalScore: $('finalScore'), newBest: $('newBest'),
-    clearTitle: $('clearTitle'), clearScore: $('clearScore'), clearBonus: $('clearBonus'),
-    mute: $('muteBtn'), leftBtn: $('leftBtn'), rightBtn: $('rightBtn'),
+    mute: $('muteBtn'), pauseBtn: $('pauseBtn'), leftBtn: $('leftBtn'), rightBtn: $('rightBtn'),
   };
 
   const store = {
@@ -75,6 +79,7 @@
   const ready = Promise.all([
     loadImage('bg', 'assets/bg.jpg'),
     loadImage('fish', 'assets/fish.png'),
+    loadImage('butterfly', 'assets/butterfly.png'),
     loadImage('glass', 'assets/glass.jpg'),
     loadImage('pillar', 'assets/pillar.jpg'),
   ]).then(() => {
@@ -131,9 +136,9 @@
     clink: () => { tone(1900, 1500, 0.12, 'sine', 0.1); tone(2800, 2600, 0.08, 'sine', 0.05); },
     shatter: () => { for (let i = 0; i < 4; i++) tone(rand(1600, 3200), rand(900, 1400), 0.16, 'triangle', 0.06, i * 0.025); },
     pearl: () => { tone(988, 1318, 0.12, 'sine', 0.13); tone(1318, 1760, 0.14, 'sine', 0.09, 0.06); },
+    butterfly: () => [880, 1175, 1568, 1760].forEach((f, i) => tone(f, f * 1.02, 0.24, 'sine', 0.09, i * 0.055)),
     gate: () => [659, 784, 988].forEach((f, i) => tone(f, f, 0.22, 'sine', 0.1, i * 0.07)),
     lose: () => tone(330, 110, 0.5, 'triangle', 0.16),
-    clear: () => [523, 659, 784, 1047, 1319].forEach((f, i) => tone(f, f * 1.005, 0.35, 'sine', 0.13, i * 0.09)),
     over: () => [523, 440, 349, 262].forEach((f, i) => tone(f, f * 0.98, 0.35, 'triangle', 0.14, i * 0.16)),
     launch: () => tone(330, 880, 0.18, 'sine', 0.13),
   };
@@ -148,12 +153,13 @@
   }
 
   // ---------- State ----------
-  let state = 'menu';            // menu | play | paused | clear | over
+  let state = 'menu';            // menu | play | paused | over
   let t = 0;
   let score = 0;
   let best = store.get('aquaDrift.best', 0);
-  let stage = 1;
   let lives = 3;
+  let runDistance = 0;
+  let runStartX = 0;
   let level = null;
   let camX = 0;
   let paddle = { x: 400, glow: 0 };
@@ -170,57 +176,77 @@
     return { x: 0, y: 0, vx: 0, vy: 0, r: FISH_R, speed: 470, launched: false, sq: 0, face: 1, tilt: 0, wob: 0 };
   }
 
-  // ---------- Level generation ----------
-  function buildLevel(n) {
-    const r = rng32(n * 7919 + 13);
-    const obs = [];
-    const pearls = [];
-    const gates = [];
-    const gateCount = 4 + n * 2;
-    const spacing = Math.max(440, 620 - n * 25);
+  // ---------- Endless course generation ----------
+  function addPickup(level, x, y, mov = null) {
+    const base = { x, y, mov, taken: false, ph: level.rng() * TAU };
+    // Every seventh pickup is a rare butterfly instead of a pearl.
+    if (level.pickupIndex++ % 7 === 5) level.butterflies.push({ ...base, r: 30 });
+    else level.pearls.push({ ...base, r: 13 });
+  }
+
+  function extendLevel(level, untilX) {
+    const r = level.rng;
     const PW = 62;
-    let x = 980;
-    for (let i = 0; i < gateCount; i++) {
-      const gapH = Math.max(160, 230 - n * 9);
-      const mov = n >= 2 && r() < Math.min(0.18 * n, 0.6)
-        ? { amp: 30 + r() * 50, spd: 0.7 + r() * 0.8, ph: r() * TAU } : null;
+    while (level.nextX < untilX) {
+      const i = level.gateIndex++;
+      const difficulty = 1 + Math.floor(i / 5);
+      const spacing = Math.max(390, 610 - difficulty * 18);
+      const gapH = Math.max(150, 230 - difficulty * 6);
+      const movingChance = Math.min(0.12 + difficulty * 0.055, 0.62);
+      const mov = difficulty >= 2 && r() < movingChance
+        ? { amp: 24 + r() * Math.min(72, 32 + difficulty * 4), spd: 0.65 + r() * 0.9, ph: r() * TAU }
+        : null;
       const amp = mov ? mov.amp : 0;
-      const minY = 50 + amp;
+      const minY = CEILING_Y + CEILING_H + 18 + amp;
       const maxY = VH - 250 - gapH - amp;
       const gapY = minY + r() * Math.max(0, maxY - minY);
-      obs.push({ type: 'pillar', x, y: -600, w: PW, h: gapY + 600, mov, cap: 'bottom' });
-      obs.push({ type: 'pillar', x, y: gapY + gapH, w: PW, h: VH + 600 - (gapY + gapH), mov, cap: 'top' });
-      gates.push({ x: x + PW, passed: false });
+      const x = level.nextX;
 
-      if (r() < 0.45 + n * 0.1) {
+      level.obs.push({ type: 'pillar', x, y: -600, w: PW, h: gapY + 600, mov, cap: 'bottom' });
+      level.obs.push({ type: 'pillar', x, y: gapY + gapH, w: PW, h: VH + 600 - (gapY + gapH), mov, cap: 'top' });
+      level.gates.push({ x: x + PW, passed: false });
+
+      if (r() < Math.min(0.45 + difficulty * 0.045, 0.82)) {
         const rows = 3;
         const bh = gapH / rows;
         for (let k = 0; k < rows; k++) {
-          const hp = r() < 0.15 + n * 0.08 ? 2 : 1;
-          obs.push({ type: 'brick', x: x + 5, y: gapY + k * bh + 3, w: PW - 10, h: bh - 6, hp, maxHp: hp, color: BRICK_COLORS[(r() * BRICK_COLORS.length) | 0], mov, flash: 0, seed: r() * 1000 });
+          const hp = r() < Math.min(0.15 + difficulty * 0.035, 0.55) ? 2 : 1;
+          level.obs.push({ type: 'brick', x: x + 5, y: gapY + k * bh + 3, w: PW - 10, h: bh - 6, hp, maxHp: hp, color: BRICK_COLORS[(r() * BRICK_COLORS.length) | 0], mov, flash: 0, seed: r() * 1000 });
         }
       } else {
-        pearls.push({ x: x + PW / 2, y: gapY + gapH / 2, r: 13, mov, taken: false, ph: r() * TAU });
+        addPickup(level, x + PW / 2, gapY + gapH / 2, mov);
       }
 
-      if (i < gateCount - 1 && r() < 0.65) {
+      if (r() < 0.68) {
         const cols = 2 + ((r() * 2) | 0);
         const rows = 1 + ((r() * 2) | 0);
         const bw = 58, bh = 28, g = 6;
         const cx = x + PW + (spacing - PW) / 2 - (cols * (bw + g)) / 2;
-        const cy = 90 + r() * (VH - 470);
+        const cy = CEILING_Y + CEILING_H + 22 + r() * (VH - 520);
         for (let a = 0; a < cols; a++) for (let b = 0; b < rows; b++) {
-          const hp = r() < 0.2 + n * 0.06 ? 2 : 1;
-          obs.push({ type: 'brick', x: cx + a * (bw + g), y: cy + b * (bh + g), w: bw, h: bh, hp, maxHp: hp, color: BRICK_COLORS[(r() * BRICK_COLORS.length) | 0], mov: null, flash: 0, seed: r() * 1000 });
+          const hp = r() < Math.min(0.18 + difficulty * 0.03, 0.5) ? 2 : 1;
+          level.obs.push({ type: 'brick', x: cx + a * (bw + g), y: cy + b * (bh + g), w: bw, h: bh, hp, maxHp: hp, color: BRICK_COLORS[(r() * BRICK_COLORS.length) | 0], mov: null, flash: 0, seed: r() * 1000 });
         }
-        for (let p = 0; p < 2; p++) {
-          pearls.push({ x: x + PW + 80 + r() * (spacing - 220), y: 80 + r() * (VH - 380), r: 13, mov: null, taken: false, ph: r() * TAU });
-        }
+        addPickup(level, x + PW + 80 + r() * Math.max(80, spacing - 220), CEILING_Y + CEILING_H + 25 + r() * (VH - 440));
+        if (r() < 0.45) addPickup(level, x + PW + 110 + r() * Math.max(60, spacing - 260), CEILING_Y + CEILING_H + 25 + r() * (VH - 440));
       }
-      x += spacing;
+      level.nextX += spacing;
     }
-    const finish = { x: x + 160, y: VH * 0.42, r: 72 };
-    return { obs, pearls, gates, finish, len: finish.x + 520 };
+    level.len = level.nextX + Math.max(VW * 3, 2600);
+    level.ceiling.w = level.len - START_WALL_X;
+  }
+
+  function buildLevel() {
+    const level = {
+      obs: [], pearls: [], butterflies: [], gates: [],
+      rng: rng32(7932), nextX: 980, gateIndex: 0, pickupIndex: 0,
+      len: 0, ceiling: null,
+    };
+    level.obs.push({ type: 'pillar', x: START_WALL_X, y: -600, w: WALL_W, h: VH + 1200, mov: null, cap: null });
+    level.ceiling = { type: 'pillar', x: START_WALL_X, y: CEILING_Y, w: 3000, h: CEILING_H, mov: null, cap: null };
+    level.obs.push(level.ceiling);
+    extendLevel(level, Math.max(6000, VW * 4));
+    return level;
   }
 
   function offY(o) { return o.mov ? Math.sin(t * o.mov.spd + o.mov.ph) * o.mov.amp : 0; }
@@ -235,12 +261,11 @@
     if ([' ', 'arrowleft', 'arrowright', 'arrowup', 'arrowdown'].includes(k)) e.preventDefault();
     if (e.repeat) { keys.add(k); return; }
     keys.add(k);
-    if (k === 'p' || k === 'escape') togglePause();
+    if (k === ' ' || k === 'p' || k === 'escape') { togglePause(); return; }
     if (k === 'm') toggleMute();
-    if (k === 'enter' || k === ' ') {
+    if (k === 'enter') {
       if (state === 'menu') startGame();
       else if (state === 'over' && !ui.over.classList.contains('hidden')) startGame();
-      else if (state === 'clear' && !ui.clear.classList.contains('hidden')) nextStage();
       else if (state === 'play') launch();
     }
   });
@@ -288,8 +313,8 @@
   $('playBtn').addEventListener('click', startGame);
   $('againBtn').addEventListener('click', startGame);
   $('resumeBtn').addEventListener('click', togglePause);
-  $('nextBtn').addEventListener('click', nextStage);
   ui.mute.addEventListener('click', toggleMute);
+  ui.pauseBtn.addEventListener('click', togglePause);
 
   function toggleMute() {
     muted = !muted;
@@ -309,32 +334,36 @@
   // ---------- Flow ----------
   function startGame() {
     initAudio();
-    score = 0; lives = 3; stage = 1;
+    score = 0; lives = 3;
     beginStage();
     sfx.launch();
   }
   let stageStartScore = 0;
+  function resetStageStart() {
+    camX = 0;
+    paddle.x = VW / 2 - PADDLE_W / 2;
+    pointer.seen = false;
+    holdScroll = 0;
+  }
   function beginStage() {
     stageStartScore = score;
-    level = buildLevel(stage);
-    camX = 0;
+    level = buildLevel();
+    resetStageStart();
+    runDistance = 0;
+    runStartX = 0;
     fish = newFish();
-    fish.speed = 470 + (stage - 1) * 28;
+    fish.speed = 470;
     particles = []; texts = [];
     state = 'play';
     lastHud = '';
-    show(ui.menu, false); show(ui.over, false); show(ui.clear, false); show(ui.pause, false);
+    show(ui.menu, false); show(ui.over, false); show(ui.pause, false);
     show(ui.hud, true);
-    addText(VW / 2, VH * 0.35, 'Stage ' + stage, '#ffffff', 46, true);
-  }
-  function nextStage() {
-    if (state !== 'clear') return;
-    stage++;
-    beginStage();
+    addText(VW / 2, VH * 0.35, 'Endless Run', '#ffffff', 46, true);
   }
   function launch() {
     if (!fish || fish.launched) return;
     fish.launched = true;
+    if (!runStartX) runStartX = fish.x;
     const ang = rand(-0.35, 0.35) + 0.25;
     fish.vx = Math.sin(ang) * fish.speed;
     fish.vy = -Math.cos(ang) * fish.speed;
@@ -355,33 +384,19 @@
       setTimeout(() => { if (state === 'over') { show(ui.over, true); sfx.over(); } }, 650);
       return;
     }
-    // restart the stage from the beginning: fresh bricks, pearls and gates,
-    // and the score goes back to what it was when the stage started
+    // restart the endless run from the beginning: fresh bricks, pearls and gates,
+    // and the score goes back to what it was when the run started
     const speed = fish.speed;
-    level = buildLevel(stage);
-    camX = 0;
+    level = buildLevel();
+    resetStageStart();
+    runDistance = 0;
+    runStartX = 0;
     score = stageStartScore;
     fish = Object.assign(newFish(), { speed });
     particles = [];
     texts = [];
     addText(VW / 2, VH * 0.35, 'Back to the start', '#ffffff', 40, true);
   }
-  function stageClear() {
-    state = 'clear';
-    const bonus = 500 + lives * 150 + stage * 100;
-    score += bonus;
-    const extra = lives < 5;
-    if (extra) lives++;
-    if (score > best) { best = score; store.set('aquaDrift.best', best); }
-    ui.clearTitle.textContent = 'Stage ' + stage + ' clear!';
-    ui.clearScore.textContent = score;
-    ui.clearBonus.textContent = 'Bonus +' + bonus + (extra ? '  ·  extra life' : '');
-    burst(level.finish.x, level.finish.y, 60, ['#ffffff', '#c9ff8a', '#8fe8ff', '#ffe28a'], 'spark');
-    sfx.clear();
-    updateHud(true);
-    setTimeout(() => { if (state === 'clear') show(ui.clear, true); }, 700);
-  }
-
   // ---------- Effects ----------
   function burst(x, y, n, colors, kind) {
     for (let i = 0; i < n; i++) {
@@ -459,10 +474,6 @@
     const f = fish;
     f.x += f.vx * dt; f.y += f.vy * dt;
 
-    if (f.y - f.r < 0) { f.y = f.r; f.vy = Math.abs(f.vy); sfx.wall(); f.sq = 1; }
-    if (f.x - f.r < camX) { f.x = camX + f.r; f.vx = Math.abs(f.vx); f.sq = 1; }
-    if (f.x + f.r > camX + VW) { f.x = camX + VW - f.r; f.vx = -Math.abs(f.vx); f.sq = 1; }
-
     for (const o of level.obs) {
       if (o.dead) continue;
       if (o.x > f.x + f.r + 2 || o.x + o.w < f.x - f.r - 2) continue;
@@ -488,36 +499,34 @@
   // ---------- Update ----------
   function update(dt) {
     t += dt;
-    if (state === 'play' || state === 'clear') ambient(dt);
+    if (state === 'play') ambient(dt);
 
-    // ambient background bubbles (screen space, decorative)
     if (ambientBubbles.length < 26 && Math.random() < dt * 6) {
       ambientBubbles.push({ x: rand(0, VW), y: VH + 20, r: rand(2, 9), vy: rand(-30, -80), ph: rand(0, TAU), depth: rand(0.3, 1) });
     }
     for (const b of ambientBubbles) { b.y += b.vy * dt; b.x += Math.sin(t * 1.5 + b.ph) * 12 * dt; }
     ambientBubbles = ambientBubbles.filter((b) => b.y > -20);
-
-    if (pointer.seen) paddle.x = clamp(pointer.x - PADDLE_W / 2, ARROW_W, VW - ARROW_W - PADDLE_W);
     paddle.glow = Math.max(0, paddle.glow - dt * 3);
 
     if (state === 'play' && level) {
-      // stage scrolling
+      extendLevel(level, Math.max(fish.x, camX + VW) + VW * 3);
+
       let dir = 0;
       if (keys.has('arrowright') || keys.has('d')) dir += 1;
       if (keys.has('arrowleft') || keys.has('a')) dir -= 1;
       if (!dir) dir = holdScroll;
-      // no scrolling while the fish is still resting on the platform
+
       if (dir && !fish.launched) { blockedFlash = 1; blockedSide = dir; dir = 0; }
-      if (dir) {
+      if (dir && fish.launched) {
         const maxCam = Math.max(0, level.len - VW);
-        let nc = clamp(camX + dir * SCROLL_SPEED * dt, 0, maxCam);
-        // leash: the view can't scroll so far that the fish drifts past the
-        // outer part of the screen; it has to bounce its own way forward
-        const leash = VW * LEASH;
-        const fishCentred = fish.x - VW / 2;
-        if (dir > 0) nc = Math.min(nc, Math.max(camX, fishCentred + leash));
-        else nc = Math.max(nc, Math.min(camX, fishCentred - leash));
-        if (Math.abs(nc - camX) < SCROLL_SPEED * dt * 0.5) { blockedFlash = 1; blockedSide = -dir; }
+        const halfZone = VW * CAMERA_LEASH;
+        const leftZone = VW / 2 - halfZone;
+        const rightZone = VW / 2 + halfZone;
+        const minCam = clamp(fish.x - rightZone, 0, maxCam);
+        const maxAllowedCam = clamp(fish.x - leftZone, 0, maxCam);
+        const wanted = clamp(camX + dir * SCROLL_SPEED * dt, 0, maxCam);
+        const nc = clamp(wanted, minCam, maxAllowedCam);
+        if (Math.abs(nc - wanted) > 0.5) { blockedFlash = 1; blockedSide = dir; }
         camX = nc;
       }
       blockedFlash = Math.max(0, blockedFlash - dt * 3);
@@ -527,13 +536,31 @@
         fish.y = PADDLE_Y - fish.r - 2 + Math.sin(t * 3) * 3;
         fish.face = 1; fish.tilt = 0;
       } else {
+        const desiredCentre = pointer.seen ? pointer.x : paddle.x + PADDLE_W / 2;
+        const fishScreenX = fish.x - camX;
+        const platformLeash = Math.min(PADDLE_LEASH, VW * 0.32);
+        const tetheredCentre = clamp(desiredCentre, fishScreenX - platformLeash, fishScreenX + platformLeash);
+        paddle.x = clamp(tetheredCentre - PADDLE_W / 2, ARROW_W, VW - ARROW_W - PADDLE_W);
+
         const steps = Math.ceil((fish.speed * dt) / 7);
         for (let i = 0; i < steps; i++) stepFish(dt / steps);
         if (Math.abs(fish.vx) > 20) fish.face = fish.vx > 0 ? 1 : -1;
         const target = clamp(Math.atan2(fish.vy, Math.abs(fish.vx)) * 0.55, -0.7, 0.7);
         fish.tilt = lerp(fish.tilt, target, 1 - Math.exp(-dt * 8));
 
-        // pearls
+        const maxCam = Math.max(0, level.len - VW);
+        const halfZone = VW * CAMERA_LEASH;
+        const leftZone = VW / 2 - halfZone;
+        const rightZone = VW / 2 + halfZone;
+        const fishViewX = fish.x - camX;
+        if (fishViewX < leftZone) camX = clamp(fish.x - leftZone, 0, maxCam);
+        else if (fishViewX > rightZone) camX = clamp(fish.x - rightZone, 0, maxCam);
+
+        const followedFishX = fish.x - camX;
+        const followedCentre = clamp(paddle.x + PADDLE_W / 2, followedFishX - platformLeash, followedFishX + platformLeash);
+        paddle.x = clamp(followedCentre - PADDLE_W / 2, ARROW_W, VW - ARROW_W - PADDLE_W);
+        runDistance = Math.max(runDistance, fish.x - runStartX);
+
         for (const p of level.pearls) {
           if (p.taken) continue;
           const py = p.y + offY(p);
@@ -543,17 +570,21 @@
             burst(p.x, py, 14, ['#ffffff', '#fff3a8', '#c9f3ff'], 'spark');
           }
         }
-        // gates
+        for (const b of level.butterflies) {
+          if (b.taken) continue;
+          const by = b.y + offY(b) + Math.sin(t * 2.4 + b.ph) * 8;
+          if (Math.hypot(b.x - fish.x, by - fish.y) < b.r + fish.r) {
+            b.taken = true; score += 250; sfx.butterfly();
+            addText(b.x, by - 22, 'Butterfly +250', '#fff2a0', 23);
+            burst(b.x, by, 28, ['#ffffff', '#ffcf56', '#ff8b45', '#8ff4ff'], 'spark');
+          }
+        }
         for (const g of level.gates) {
           if (!g.passed && fish.x - fish.r > g.x) {
             g.passed = true; score += 100; sfx.gate();
             addText(fish.x, fish.y - 40, 'Nice! +100', '#d9ffb0', 22);
           }
         }
-        // finish
-        const fz = level.finish;
-        if (Math.hypot(fz.x - fish.x, fz.y - fish.y) < fz.r) { stageClear(); }
-        // fell
         if (fish.y - fish.r > VH + 10) loseLife();
       }
     }
@@ -571,18 +602,18 @@
     for (const tx of texts) { tx.life += dt; tx.y -= (tx.screen ? 14 : 40) * dt; }
     texts = texts.filter((tx) => tx.life < tx.max);
     shake = Math.max(0, shake - dt * 40);
-
     updateHud();
   }
 
   function updateHud(force) {
     if (!level || !fish) return;
-    const prog = clamp((fish.x - 200) / (level.finish.x - 200), 0, 1);
-    const key = score + '|' + lives + '|' + stage + '|' + Math.round(prog * 200);
+    const metres = Math.max(0, Math.floor(runDistance / 10));
+    const prog = (runDistance % 1000) / 1000;
+    const key = score + '|' + lives + '|' + metres + '|' + Math.round(prog * 200);
     if (!force && key === lastHud) return;
     lastHud = key;
     ui.score.textContent = score;
-    ui.stageLabel.textContent = 'Stage ' + stage;
+    ui.stageLabel.textContent = metres + ' m';
     ui.progress.style.width = (prog * 100).toFixed(1) + '%';
     let html = '';
     const n = Math.max(3, lives);
@@ -696,12 +727,14 @@
     ctx.fillStyle = g; ctx.fillRect(x, y, w, h);
     ctx.fillStyle = 'rgba(255,255,255,0.4)';
     ctx.fillRect(x + w * 0.14, y, w * 0.07, h);
-    // glossy cap at the gap end
-    const capY = o.cap === 'top' ? y : y + h - 34;
-    const cg = ctx.createLinearGradient(0, capY, 0, capY + 34);
-    if (o.cap === 'top') { cg.addColorStop(0, 'rgba(255,255,255,0.7)'); cg.addColorStop(1, 'rgba(255,255,255,0)'); }
-    else { cg.addColorStop(0, 'rgba(255,255,255,0)'); cg.addColorStop(1, 'rgba(255,255,255,0.45)'); }
-    ctx.fillStyle = cg; ctx.fillRect(x, capY, w, 34);
+    // glossy cap at a generated gate's gap end
+    if (o.cap) {
+      const capY = o.cap === 'top' ? y : y + h - 34;
+      const cg = ctx.createLinearGradient(0, capY, 0, capY + 34);
+      if (o.cap === 'top') { cg.addColorStop(0, 'rgba(255,255,255,0.7)'); cg.addColorStop(1, 'rgba(255,255,255,0)'); }
+      else { cg.addColorStop(0, 'rgba(255,255,255,0)'); cg.addColorStop(1, 'rgba(255,255,255,0.45)'); }
+      ctx.fillStyle = cg; ctx.fillRect(x, capY, w, 34);
+    }
     ctx.restore();
     ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.lineWidth = 2; ctx.stroke();
     rrect(ctx, x + 3, y + 3, w - 6, h - 6, 13);
@@ -744,30 +777,6 @@
       rrect(ctx, x + 4, y + 4, w - 8, h - 8, 5);
       ctx.strokeStyle = 'rgba(255,255,255,0.7)'; ctx.lineWidth = 1.2; ctx.stroke();
     }
-    ctx.restore();
-  }
-
-  function drawPortal(fz) {
-    const pulse = 1 + Math.sin(t * 3) * 0.04;
-    const r = fz.r * pulse;
-    ctx.save();
-    const glow = ctx.createRadialGradient(fz.x, fz.y, r * 0.4, fz.x, fz.y, r * 1.8);
-    glow.addColorStop(0, 'rgba(220,255,180,0.55)');
-    glow.addColorStop(0.5, 'rgba(140,240,255,0.25)');
-    glow.addColorStop(1, 'rgba(140,240,255,0)');
-    ctx.fillStyle = glow;
-    ctx.beginPath(); ctx.arc(fz.x, fz.y, r * 1.8, 0, TAU); ctx.fill();
-    for (let i = 0; i < 3; i++) {
-      ctx.strokeStyle = i === 0 ? 'rgba(255,255,255,0.95)' : i === 1 ? 'rgba(150,240,90,0.85)' : 'rgba(60,200,255,0.8)';
-      ctx.lineWidth = 6 - i * 1.5;
-      ctx.beginPath(); ctx.arc(fz.x, fz.y, r - i * 9, t * (i % 2 ? -1 : 1) * 0.8, t * (i % 2 ? -1 : 1) * 0.8 + TAU * 0.8); ctx.stroke();
-    }
-    drawGlassBubble(fz.x, fz.y, r * 0.62, true);
-    ctx.fillStyle = '#ffffff';
-    ctx.font = '700 18px "Segoe UI", Ubuntu, Arial, sans-serif';
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.shadowColor = 'rgba(0,90,150,0.8)'; ctx.shadowBlur = 6;
-    ctx.fillText('GOAL', fz.x, fz.y);
     ctx.restore();
   }
 
@@ -814,6 +823,26 @@
     ctx.beginPath(); ctx.arc(p.x, y, p.r, 0, TAU); ctx.fill();
     ctx.restore();
     drawGlassBubble(p.x, y, p.r, false);
+  }
+
+  function drawButterfly(b) {
+    const y = b.y + offY(b) + Math.sin(t * 2.4 + b.ph) * 8;
+    ctx.save();
+    const glow = ctx.createRadialGradient(b.x, y, 0, b.x, y, b.r * 2.3);
+    glow.addColorStop(0, 'rgba(255,220,100,0.42)');
+    glow.addColorStop(1, 'rgba(255,180,70,0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath(); ctx.arc(b.x, y, b.r * 2.3, 0, TAU); ctx.fill();
+    if (img.butterfly) {
+      const flap = 0.82 + Math.abs(Math.sin(t * 7 + b.ph)) * 0.18;
+      const w = b.r * 2.6, h = w * img.butterfly.height / img.butterfly.width;
+      ctx.translate(b.x, y);
+      ctx.rotate(Math.sin(t * 2.2 + b.ph) * 0.13);
+      ctx.scale(flap, 1);
+      ctx.shadowColor = 'rgba(255,210,70,0.8)'; ctx.shadowBlur = 12;
+      ctx.drawImage(img.butterfly, -w / 2, -h / 2, w, h);
+    }
+    ctx.restore();
   }
 
   function drawParticles() {
@@ -952,7 +981,6 @@
       ctx.setTransform(DPR * S, 0, 0, DPR * S, DPR * sx, DPR * (OY + sy));
       ctx.translate(-camX, 0);
       const vx0 = camX - 120, vx1 = camX + VW + 120;
-      drawPortal(level.finish);
       for (const o of level.obs) {
         if (o.dead || o.x > vx1 || o.x + o.w < vx0) continue;
         if (o.type === 'pillar') drawPillar(o);
@@ -962,6 +990,7 @@
         if (o.type === 'brick') drawBrick(o);
       }
       for (const p of level.pearls) if (!p.taken && p.x > vx0 && p.x < vx1) drawPearl(p);
+      for (const b of level.butterflies) if (!b.taken && b.x > vx0 && b.x < vx1) drawButterfly(b);
       drawFish();
       drawParticles();
       for (const tx of texts) if (!tx.screen) drawText(tx);
@@ -976,7 +1005,7 @@
       }
       drawScrollbar();
       for (const tx of texts) if (tx.screen) drawText(tx);
-      if (state === 'play' && fish && !fish.launched) drawHint('Click or press Space to launch');
+      if (state === 'play' && fish && !fish.launched) drawHint('Click, tap, or press Enter to launch');
     } else {
       ctx.setTransform(DPR * S, 0, 0, DPR * S, 0, DPR * OY);
       drawScrollbar();
@@ -995,7 +1024,7 @@
 
   // test hook (only with ?debug in the URL)
   if (/[?&]debug\b/.test(location.search)) {
-    window.__aqua = { get fish() { return fish; }, get camX() { return camX; }, get S() { return S; }, get OY() { return OY; }, get state() { return state; }, get score() { return score; }, get level() { return level; } };
+    window.__aqua = { get fish() { return fish; }, get paddle() { return paddle; }, get camX() { return camX; }, get VW() { return VW; }, get S() { return S; }, get OY() { return OY; }, get state() { return state; }, get score() { return score; }, get distance() { return runDistance; }, get level() { return level; } };
   }
 
   window.addEventListener('resize', resize);

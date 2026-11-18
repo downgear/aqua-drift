@@ -1,40 +1,50 @@
 # Aqua Drift
 
-A Frutiger Aero brick-breaker side-scroller. A photoreal fish rides inside a glass
-bubble. Keep it bouncing on a Windows 7-style scrollbar thumb, scroll the stage
-along, smash glass bricks, slip through the gaps in the pillars and reach the goal portal.
+A Frutiger Aero endless brick-breaker side-scroller. A photoreal fish rides
+inside a glass bubble. Keep it bouncing on a Windows 7-style scrollbar thumb,
+smash glass bricks, slip through moving pillar gaps, and travel as far as you can.
 
 ![Aqua Drift](docs/screenshot.png)
 
-**Play in the browser:** https://downgear.github.io/aqua-drift/
-**Download:** see [Releases](https://github.com/downgear/aqua-drift/releases). Unzip it and open `index.html`; no install or server needed.
+**Play in the browser:** https://downgear.github.io/aqua-drift/  
+**Download:** see [Releases](https://github.com/downgear/aqua-drift/releases).
+Unzip it and open `index.html`; no install or server is needed.
 
 ## Controls
 
 | Action | Input |
 | --- | --- |
-| Move the platform (scrollbar thumb) | Mouse / drag |
-| Scroll the stage | Left / Right arrow keys, A / D, or the scrollbar arrow buttons |
-| Launch the fish | Click, Space or tap |
-| Pause / Sound | P or Esc / M |
+| Launch the fish | Click, tap, or Enter |
+| Move the platform after launch | Mouse / drag |
+| Shift the view after launch | Left / Right arrow keys, A / D, or the scrollbar arrow buttons |
+| Pause / resume | Space, P, Esc, or the Pause button |
+| Toggle sound | M or the Sound button |
 
-The view is on a leash: you can only scroll so far ahead of or behind the fish
-before it stops, so the fish has to bounce its own way forward. The stage
-also can't scroll while the fish is still resting on the platform; launch it first. Angle your
-bounces off the edge of the scrollbar thumb to send it across the stage.
+Before launch, both the platform and course are locked at the real starting
+position. This prevents moving the view forward before releasing the fish.
 
-If the fish falls past the platform you lose a life and the stage restarts from the
-beginning: bricks and pearls come back and your score goes back to what it was
-when the stage started.
+After launch, the platform is tethered to the fish. The mouse can only move it a
+set distance from the fish; when the fish moves beyond that distance it drags the
+platform back with it. The camera follows the fish inside a limited viewing zone,
+so the fish never bounces against the browser's left, right, or top edge. Visible
+glass walls and a glass ceiling are the only physical boundaries.
+
+If the fish falls past the platform, you lose a life and the entire endless run
+restarts from the beginning. Bricks and pickups return, distance returns to zero,
+and the score returns to what it was at the start of the run.
+
+## Endless course
+
+The course is generated deterministically ahead of the fish and has no goal
+portal or next stage. Gaps gradually narrow, moving pillars become more common,
+and tough glass bricks appear more often as distance increases.
 
 ## Scoring
 
-- Glass brick: 50 points (100 for the double-rim tough ones)
+- Glass brick: 50 points (100 for tough double-rim bricks)
 - Golden pearl: 25 points
-- Getting through a gate: 100 points
-- Stage clear: bonus based on lives left, plus an extra life
-
-Stages get longer, with smaller gaps and moving pillars.
+- Rare butterfly: 250 points
+- Passing a gate: 100 points
 
 ## Develop
 
