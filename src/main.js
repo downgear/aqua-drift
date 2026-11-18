@@ -16,6 +16,7 @@
   const ARROW_W = 36;
   const FISH_R = 33;
   const SCROLL_SPEED = 420;
+  const LEASH = 0.34;            // fish must stay within this fraction of the view width from the centre
   const TAU = Math.PI * 2;
 
   const BRICK_COLORS = ['#25c4f5', '#8fe04a', '#3f8cff', '#22d6b4', '#ffb43d', '#6fe0ff'];
@@ -162,6 +163,7 @@
   let ambientBubbles = [];
   let shake = 0;
   let blockedFlash = 0;
+  let blockedSide = -1;          // which screen edge to flash when the leash is taut
   let lastHud = '';
 
   function newFish() {
@@ -396,18 +398,6 @@
   }
 
   // ---------- Physics ----------
-  function overlapsSolid(fx, fy, r) {
-    for (const o of level.obs) {
-      if (o.dead) continue;
-      if (o.x > fx + r || o.x + o.w < fx - r) continue;
-      const oy = o.y + offY(o);
-      const cx = clamp(fx, o.x, o.x + o.w), cy = clamp(fy, oy, oy + o.h);
-      const dx = fx - cx, dy = fy - cy;
-      if (dx * dx + dy * dy < r * r * 0.9) return true;
-    }
-    return false;
-  }
-
   function normalizeSpeed() {
     const sp = fish.speed;
     let m = Math.hypot(fish.vx, fish.vy) || 1;
@@ -516,25 +506,19 @@
       if (keys.has('arrowright') || keys.has('d')) dir += 1;
       if (keys.has('arrowleft') || keys.has('a')) dir -= 1;
       if (!dir) dir = holdScroll;
+      // no scrolling while the fish is still resting on the platform
+      if (dir && !fish.launched) { blockedFlash = 1; blockedSide = dir; dir = 0; }
       if (dir) {
         const maxCam = Math.max(0, level.len - VW);
-        const nc = clamp(camX + dir * SCROLL_SPEED * dt, 0, maxCam);
-        if (fish.launched) {
-          const ox = fish.x;
-          let nx = fish.x;
-          if (dir > 0 && fish.x - fish.r < nc) nx = nc + fish.r;
-          if (dir < 0 && fish.x + fish.r > nc + VW) nx = nc + VW - fish.r;
-          if (nx !== ox && overlapsSolid(nx, fish.y, fish.r)) {
-            blockedFlash = 1;
-          } else {
-            fish.x = nx;
-            if (dir > 0 && nx !== ox && fish.vx < 0) fish.vx = -fish.vx;
-            if (dir < 0 && nx !== ox && fish.vx > 0) fish.vx = -fish.vx;
-            camX = nc;
-          }
-        } else {
-          camX = nc;
-        }
+        let nc = clamp(camX + dir * SCROLL_SPEED * dt, 0, maxCam);
+        // leash: the view can't scroll so far that the fish drifts past the
+        // outer part of the screen; it has to bounce its own way forward
+        const leash = VW * LEASH;
+        const fishCentred = fish.x - VW / 2;
+        if (dir > 0) nc = Math.min(nc, Math.max(camX, fishCentred + leash));
+        else nc = Math.max(nc, Math.min(camX, fishCentred - leash));
+        if (Math.abs(nc - camX) < SCROLL_SPEED * dt * 0.5) { blockedFlash = 1; blockedSide = -dir; }
+        camX = nc;
       }
       blockedFlash = Math.max(0, blockedFlash - dt * 3);
 
@@ -984,10 +968,11 @@
 
       ctx.setTransform(DPR * S, 0, 0, DPR * S, 0, DPR * OY);
       if (blockedFlash > 0) {
-        const g = ctx.createLinearGradient(0, 0, 60, 0);
-        g.addColorStop(0, 'rgba(255,120,160,' + (0.45 * blockedFlash) + ')');
-        g.addColorStop(1, 'rgba(255,120,160,0)');
-        ctx.fillStyle = g; ctx.fillRect(0, 0, 60, VH);
+        const ex = blockedSide < 0 ? 0 : VW;
+        const g = ctx.createLinearGradient(ex, 0, ex - blockedSide * 90, 0);
+        g.addColorStop(0, 'rgba(120,220,255,' + (0.5 * blockedFlash) + ')');
+        g.addColorStop(1, 'rgba(120,220,255,0)');
+        ctx.fillStyle = g; ctx.fillRect(blockedSide < 0 ? 0 : VW - 90, 0, 90, VH);
       }
       drawScrollbar();
       for (const tx of texts) if (tx.screen) drawText(tx);

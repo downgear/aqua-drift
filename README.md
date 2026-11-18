@@ -18,8 +18,10 @@ along, smash glass bricks, slip through the gaps in the pillars and reach the go
 | Launch the fish | Click, Space or tap |
 | Pause / Sound | P or Esc / M |
 
-The edges of the screen push the fish forward as you scroll, but you can't push it
-through a wall. Break the bricks or bounce it through a gap first.
+The view is on a leash: you can only scroll so far ahead of or behind the fish
+before it stops, so the fish has to bounce its own way forward. The stage
+also can't scroll while the fish is still resting on the platform; launch it first. Angle your
+bounces off the edge of the scrollbar thumb to send it across the stage.
 
 If the fish falls past the platform you lose a life and the stage restarts from the
 beginning: bricks and pearls come back and your score goes back to what it was
