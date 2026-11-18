@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#2fb8ee">
+<title>Aqua Drift</title>
+<link rel="icon" type="image/png" href="assets/fish.png">
+<link rel="stylesheet" href="src/style.css">
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div id="hud" class="hidden">
+  <div class="glass panel stats">
+    <div class="score"><span class="label">Score</span><span id="score">0</span></div>
+    <div class="lives" id="lives"></div>
+  </div>
+  <div class="glass panel meters">
+    <div class="meter"><span class="label" id="stageLabel">Stage 1</span><div class="bar"><div id="progress" class="fill energy"></div></div></div>
+  </div>
+  <button id="muteBtn" class="glass icon-btn" aria-label="Toggle sound" title="Sound (M)">Sound</button>
+  <button id="leftBtn" class="glass scroll-btn left" aria-label="Scroll stage left">&lsaquo;</button>
+  <button id="rightBtn" class="glass scroll-btn right" aria-label="Scroll stage right">&rsaquo;</button>
+</div>
+
+<div id="menu" class="overlay">
+  <div class="glass card">
+    <h1>Aqua Drift</h1>
+    <p class="tag">Bounce a glossy little fish through a bright glass sea</p>
+    <button class="aero-btn" id="playBtn"><span>Play</span></button>
+    <div class="howto">
+      <div><b>Platform</b> the scrollbar thumb follows your mouse</div>
+      <div><b>Stage</b> Left / Right arrow keys · A / D · scrollbar arrows</div>
+      <div><b>Launch</b> click · Space · tap</div>
+      <div>Break <b>glass bricks</b>, slip through the gaps, reach the <b>portal</b></div>
+      <div>Screen edges push the fish along · <b>P</b> pause · <b>M</b> sound</div>
+    </div>
+    <p class="best">Best: <span id="bestMenu">0</span></p>
+    <p class="thanks">Special thanks to Đậu Văn Đăng Khoa for supporting me with his toilet</p>
+  </div>
+</div>
+
+<div id="pause" class="overlay hidden">
+  <div class="glass card small">
+    <h2>Paused</h2>
+    <button class="aero-btn" id="resumeBtn"><span>Resume</span></button>
+  </div>
+</div>
+
+<div id="clear" class="overlay hidden">
+  <div class="glass card">
+    <h2 id="clearTitle">Stage Clear!</h2>
+    <div class="big-score" id="clearScore">0</div>
+    <p class="best" id="clearBonus">Bonus</p>
+    <button class="aero-btn green" id="nextBtn"><span>Next stage</span></button>
+  </div>
+</div>
+
+<div id="over" class="overlay hidden">
+  <div class="glass card">
+    <h2>Game Over</h2>
+    <div class="big-score" id="finalScore">0</div>
+    <p class="new-best hidden" id="newBest">New best!</p>
+    <p class="best">Best: <span id="bestOver">0</span></p>
+    <button class="aero-btn green" id="againBtn"><span>Swim again</span></button>
+  </div>
+</div>
+
+<script src="src/main.js"></script>
+</body>
+</html>

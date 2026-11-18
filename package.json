@@ -1,0 +1,16 @@
+{
+  "name": "aqua-drift",
+  "version": "1.0.0",
+  "description": "A Frutiger Aero brick-breaker side-scroller: bounce a fish in a glass bubble through the stage.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "npx --yes serve -l 5173 .",
+    "build": "node build.mjs",
+    "preview": "npx --yes serve -l 4173 dist"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0"
+  },
+  "license": "MIT"
+}
