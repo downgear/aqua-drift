@@ -32,9 +32,9 @@ bounces against the browser's left or right side. The scrollbar and platform sta
 fixed in screen space while the course moves behind them. The top of the browser
 remains active: the fish can still hit it and bounce downward normally.
 
-If the fish falls past the platform, you lose a life and the entire endless run
-restarts from the beginning. Bricks and pickups return, distance returns to zero,
-and the score returns to what it was at the start of the run.
+There is no life counter or game-over limit. If the fish falls past the platform,
+the endless run immediately restarts from the beginning. Bricks and pickups return,
+and both distance and score reset to zero. Your best score is saved automatically.
 
 ## Endless course
 

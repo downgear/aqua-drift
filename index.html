@@ -14,7 +14,6 @@
 <div id="hud" class="hidden">
   <div class="glass panel stats">
     <div class="score"><span class="label">Score</span><span id="score">0</span></div>
-    <div class="lives" id="lives"></div>
   </div>
   <div class="glass panel meters">
     <div class="meter"><span class="label" id="stageLabel">0 m</span><div class="bar"><div id="progress" class="fill energy"></div></div></div>
@@ -31,7 +30,7 @@
     <p class="tag">Bounce a glossy little fish through a bright glass sea</p>
     <button class="aero-btn" id="playBtn"><span>Play</span></button>
     <div class="howto">
-      <div><b>Platform</b> follows your mouse but stays tethered to the fish</div>
+      <div><b>Platform</b> stays fixed through launch, then follows your mouse</div>
       <div><b>Stage</b> Left / Right arrow keys · A / D · scrollbar arrows</div>
       <div><b>Launch</b> click · Enter · tap (platform stays locked until the fish clears it)</div>
       <div>Break <b>glass bricks</b>, slip through gaps, and survive the endless course</div>
@@ -46,16 +45,6 @@
   <div class="glass card small">
     <h2>Paused</h2>
     <button class="aero-btn" id="resumeBtn"><span>Resume</span></button>
-  </div>
-</div>
-
-<div id="over" class="overlay hidden">
-  <div class="glass card">
-    <h2>Game Over</h2>
-    <div class="big-score" id="finalScore">0</div>
-    <p class="new-best hidden" id="newBest">New best!</p>
-    <p class="best">Best: <span id="bestOver">0</span></p>
-    <button class="aero-btn green" id="againBtn"><span>Swim again</span></button>
   </div>
 </div>
 

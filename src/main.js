@@ -29,9 +29,9 @@
   const canvas = $('game');
   const ctx = canvas.getContext('2d');
   const ui = {
-    hud: $('hud'), menu: $('menu'), pause: $('pause'), over: $('over'),
-    score: $('score'), lives: $('lives'), progress: $('progress'), stageLabel: $('stageLabel'),
-    bestMenu: $('bestMenu'), bestOver: $('bestOver'), finalScore: $('finalScore'), newBest: $('newBest'),
+    hud: $('hud'), menu: $('menu'), pause: $('pause'),
+    score: $('score'), progress: $('progress'), stageLabel: $('stageLabel'),
+    bestMenu: $('bestMenu'),
     mute: $('muteBtn'), pauseBtn: $('pauseBtn'), leftBtn: $('leftBtn'), rightBtn: $('rightBtn'),
   };
 
@@ -136,8 +136,7 @@
     pearl: () => { tone(988, 1318, 0.12, 'sine', 0.13); tone(1318, 1760, 0.14, 'sine', 0.09, 0.06); },
     butterfly: () => [880, 1175, 1568, 1760].forEach((f, i) => tone(f, f * 1.02, 0.24, 'sine', 0.09, i * 0.055)),
     gate: () => [659, 784, 988].forEach((f, i) => tone(f, f, 0.22, 'sine', 0.1, i * 0.07)),
-    lose: () => tone(330, 110, 0.5, 'triangle', 0.16),
-    over: () => [523, 440, 349, 262].forEach((f, i) => tone(f, f * 0.98, 0.35, 'triangle', 0.14, i * 0.16)),
+    fall: () => tone(330, 110, 0.5, 'triangle', 0.16),
     launch: () => tone(330, 880, 0.18, 'sine', 0.13),
   };
   let chimeT = 0;
@@ -151,11 +150,10 @@
   }
 
   // ---------- State ----------
-  let state = 'menu';            // menu | play | paused | over
+  let state = 'menu';            // menu | play | paused
   let t = 0;
   let score = 0;
   let best = store.get('aquaDrift.best', 0);
-  let lives = 3;
   let runDistance = 0;
   let runStartX = 0;
   let level = null;
@@ -261,7 +259,6 @@
     if (k === 'm') toggleMute();
     if (k === 'enter') {
       if (state === 'menu') startGame();
-      else if (state === 'over' && !ui.over.classList.contains('hidden')) startGame();
       else if (state === 'play') launch();
     }
   });
@@ -307,7 +304,6 @@
   bindHold(ui.rightBtn, 1);
 
   $('playBtn').addEventListener('click', startGame);
-  $('againBtn').addEventListener('click', startGame);
   $('resumeBtn').addEventListener('click', togglePause);
   ui.mute.addEventListener('click', toggleMute);
   ui.pauseBtn.addEventListener('click', togglePause);
@@ -330,11 +326,10 @@
   // ---------- Flow ----------
   function startGame() {
     initAudio();
-    score = 0; lives = 3;
+    score = 0;
     beginStage();
     sfx.launch();
   }
-  let stageStartScore = 0;
   function resetStageStart() {
     camX = 0;
     paddle.x = VW / 2 - PADDLE_W / 2;
@@ -343,7 +338,6 @@
     holdScroll = 0;
   }
   function beginStage() {
-    stageStartScore = score;
     level = buildLevel();
     resetStageStart();
     runDistance = 0;
@@ -353,7 +347,7 @@
     particles = []; texts = [];
     state = 'play';
     lastHud = '';
-    show(ui.menu, false); show(ui.over, false); show(ui.pause, false);
+    show(ui.menu, false); show(ui.pause, false);
     show(ui.hud, true);
     addText(VW / 2, VH * 0.35, 'Endless Run', '#ffffff', 46, true);
   }
@@ -368,29 +362,26 @@
     fish.vy = -Math.cos(ang) * fish.speed;
     sfx.launch();
   }
-  function loseLife() {
-    lives--;
-    sfx.lose();
+  function saveBest() {
+    if (score <= best) return;
+    best = score;
+    store.set('aquaDrift.best', best);
+    ui.bestMenu.textContent = best;
+  }
+
+  function restartRun() {
+    saveBest();
+    sfx.fall();
     shake = 14;
-    burst(fish.x, VH - 30, 26, ['#ffffff', '#bdf3ff', '#7fd8ff'], 'bubble');
-    if (lives <= 0) {
-      state = 'over';
-      const isBest = score > best;
-      if (isBest) { best = score; store.set('aquaDrift.best', best); }
-      ui.finalScore.textContent = score;
-      ui.bestOver.textContent = best;
-      show(ui.newBest, isBest);
-      setTimeout(() => { if (state === 'over') { show(ui.over, true); sfx.over(); } }, 650);
-      return;
-    }
-    // restart the endless run from the beginning: fresh bricks, pearls and gates,
-    // and the score goes back to what it was when the run started
+
+    // A miss immediately starts a fresh endless run. There are no lives and no
+    // game-over state; the generated course, score, and distance reset instead.
     const speed = fish.speed;
     level = buildLevel();
     resetStageStart();
     runDistance = 0;
     runStartX = 0;
-    score = stageStartScore;
+    score = 0;
     fish = Object.assign(newFish(), { speed });
     particles = [];
     texts = [];
@@ -598,7 +589,7 @@
             addText(fish.x, fish.y - 40, 'Nice! +100', '#d9ffb0', 22);
           }
         }
-        if (fish.y - fish.r > VH + 10) loseLife();
+        if (fish.y - fish.r > VH + 10) restartRun();
       }
     }
     fish && (fish.sq = Math.max(0, fish.sq - dt * 5));
@@ -620,18 +611,15 @@
 
   function updateHud(force) {
     if (!level || !fish) return;
+    saveBest();
     const metres = Math.max(0, Math.floor(runDistance / 10));
     const prog = (runDistance % 1000) / 1000;
-    const key = score + '|' + lives + '|' + metres + '|' + Math.round(prog * 200);
+    const key = score + '|' + metres + '|' + Math.round(prog * 200);
     if (!force && key === lastHud) return;
     lastHud = key;
     ui.score.textContent = score;
     ui.stageLabel.textContent = metres + ' m';
     ui.progress.style.width = (prog * 100).toFixed(1) + '%';
-    let html = '';
-    const n = Math.max(3, lives);
-    for (let i = 0; i < n; i++) html += '<span class="life' + (i < lives ? '' : ' lost') + '"></span>';
-    ui.lives.innerHTML = html;
   }
 
   // ---------- Drawing ----------
@@ -796,7 +784,6 @@
   function drawFish() {
     const f = fish;
     if (!f) return;
-    if (state === 'over' && lives <= 0) return;
     const sq = f.sq * 0.12;
     ctx.save();
     ctx.translate(f.x, f.y);
