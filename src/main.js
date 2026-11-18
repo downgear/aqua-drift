@@ -20,8 +20,7 @@
   const PADDLE_LEASH = 300;      // maximum horizontal distance between fish and platform centre
   const START_WALL_X = 72;
   const WALL_W = 58;
-  const CEILING_Y = 36;
-  const CEILING_H = 44;
+  const TOP_MARGIN = 72;
   const TAU = Math.PI * 2;
 
   const BRICK_COLORS = ['#25c4f5', '#8fe04a', '#3f8cff', '#22d6b4', '#ffb43d', '#6fe0ff'];
@@ -198,7 +197,7 @@
         ? { amp: 24 + r() * Math.min(72, 32 + difficulty * 4), spd: 0.65 + r() * 0.9, ph: r() * TAU }
         : null;
       const amp = mov ? mov.amp : 0;
-      const minY = CEILING_Y + CEILING_H + 18 + amp;
+      const minY = TOP_MARGIN + 18 + amp;
       const maxY = VH - 250 - gapH - amp;
       const gapY = minY + r() * Math.max(0, maxY - minY);
       const x = level.nextX;
@@ -223,29 +222,26 @@
         const rows = 1 + ((r() * 2) | 0);
         const bw = 58, bh = 28, g = 6;
         const cx = x + PW + (spacing - PW) / 2 - (cols * (bw + g)) / 2;
-        const cy = CEILING_Y + CEILING_H + 22 + r() * (VH - 520);
+        const cy = TOP_MARGIN + 22 + r() * (VH - 520);
         for (let a = 0; a < cols; a++) for (let b = 0; b < rows; b++) {
           const hp = r() < Math.min(0.18 + difficulty * 0.03, 0.5) ? 2 : 1;
           level.obs.push({ type: 'brick', x: cx + a * (bw + g), y: cy + b * (bh + g), w: bw, h: bh, hp, maxHp: hp, color: BRICK_COLORS[(r() * BRICK_COLORS.length) | 0], mov: null, flash: 0, seed: r() * 1000 });
         }
-        addPickup(level, x + PW + 80 + r() * Math.max(80, spacing - 220), CEILING_Y + CEILING_H + 25 + r() * (VH - 440));
-        if (r() < 0.45) addPickup(level, x + PW + 110 + r() * Math.max(60, spacing - 260), CEILING_Y + CEILING_H + 25 + r() * (VH - 440));
+        addPickup(level, x + PW + 80 + r() * Math.max(80, spacing - 220), TOP_MARGIN + 25 + r() * (VH - 440));
+        if (r() < 0.45) addPickup(level, x + PW + 110 + r() * Math.max(60, spacing - 260), TOP_MARGIN + 25 + r() * (VH - 440));
       }
       level.nextX += spacing;
     }
     level.len = level.nextX + Math.max(VW * 3, 2600);
-    level.ceiling.w = level.len - START_WALL_X;
   }
 
   function buildLevel() {
     const level = {
       obs: [], pearls: [], butterflies: [], gates: [],
       rng: rng32(7932), nextX: 980, gateIndex: 0, pickupIndex: 0,
-      len: 0, ceiling: null,
+      len: 0,
     };
-    level.obs.push({ type: 'pillar', x: START_WALL_X, y: -600, w: WALL_W, h: VH + 1200, mov: null, cap: null });
-    level.ceiling = { type: 'pillar', x: START_WALL_X, y: CEILING_Y, w: 3000, h: CEILING_H, mov: null, cap: null };
-    level.obs.push(level.ceiling);
+    level.obs.push({ type: 'pillar', x: START_WALL_X, y: -1200, w: WALL_W, h: VH + 2400, mov: null, cap: null });
     extendLevel(level, Math.max(6000, VW * 4));
     return level;
   }
@@ -478,6 +474,16 @@
   function stepFish(dt) {
     const f = fish;
     f.x += f.vx * dt; f.y += f.vy * dt;
+
+    // The top remains a real browser-edge bounce. Left and right have no edge
+    // collision—the camera follows the fish before it reaches either side.
+    const viewTop = -OY / S;
+    if (f.y - f.r < viewTop) {
+      f.y = viewTop + f.r;
+      f.vy = Math.abs(f.vy);
+      f.sq = 1;
+      sfx.wall();
+    }
 
     for (const o of level.obs) {
       if (o.dead) continue;

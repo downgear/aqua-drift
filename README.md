@@ -28,8 +28,8 @@ the fish has visibly risen clear of it, and pre-launch mouse input is discarded.
 After that initial separation, the platform is tethered to the fish. The mouse can only move it a
 set distance from the fish; when the fish moves beyond that distance it drags the
 platform back with it. The camera follows the fish inside a limited viewing zone,
-so the fish never bounces against the browser's left, right, or top edge. Visible
-glass walls and a glass ceiling are the only physical boundaries.
+so the fish never bounces against the browser's left or right side. The top of the
+browser remains active: the fish can still hit it and bounce downward normally.
 
 If the fish falls past the platform, you lose a life and the entire endless run
 restarts from the beginning. Bricks and pickups return, distance returns to zero,
