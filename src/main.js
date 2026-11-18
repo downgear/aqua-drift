@@ -1,7 +1,7 @@
 /* Aqua Drift — a Frutiger Aero brick-breaker side-scroller.
  * The fish rides inside a glass bubble (the ball). The platform is a
- * Windows 7 style scrollbar thumb. Left/Right scrolls the stage; the
- * the camera and scrollbar platform stay tethered to the fish.
+ * Windows 7 style scrollbar thumb. The platform follows the pointer while
+ * the camera shifts the stage to keep the fish inside the viewing area.
  */
 (() => {
   'use strict';
@@ -17,7 +17,6 @@
   const FISH_R = 33;
   const SCROLL_SPEED = 420;
   const CAMERA_LEASH = 0.30;     // half-width of the camera's allowed zone around screen centre
-  const PADDLE_LEASH = 300;      // maximum horizontal distance between fish and platform centre
   const START_WALL_X = 72;
   const WALL_W = 58;
   const TOP_MARGIN = 72;
@@ -162,7 +161,6 @@
   let level = null;
   let camX = 0;
   let paddle = { x: 400, glow: 0 };
-  let platformLocked = true;
   let fish = null;
   let particles = [];
   let texts = [];
@@ -279,7 +277,7 @@
     if (v.x > VW - ARROW_W) return 1;
     return 0;
   }
-  canvas.addEventListener('pointermove', (e) => {
+  window.addEventListener('pointermove', (e) => {
     const v = toVirtual(e);
     pointer.x = v.x; pointer.y = v.y; pointer.seen = true;
   });
@@ -338,9 +336,9 @@
   let stageStartScore = 0;
   function resetStageStart() {
     camX = 0;
-    paddle.x = VW / 2 - PADDLE_W / 2;
-    platformLocked = true;
-    pointer.seen = false;
+    paddle.x = pointer.seen
+      ? clamp(pointer.x - PADDLE_W / 2, ARROW_W, VW - ARROW_W - PADDLE_W)
+      : VW / 2 - PADDLE_W / 2;
     holdScroll = 0;
   }
   function beginStage() {
@@ -361,9 +359,6 @@
   function launch() {
     if (!fish || fish.launched) return;
     fish.launched = true;
-    // Ignore every mouse position recorded while the platform was locked. The
-    // player must move the pointer again after the fish clears the platform.
-    pointer.seen = false;
     if (!runStartX) runStartX = fish.x;
     const ang = rand(-0.35, 0.35) + 0.25;
     fish.vx = Math.sin(ang) * fish.speed;
@@ -517,6 +512,10 @@
     }
     for (const b of ambientBubbles) { b.y += b.vy * dt; b.x += Math.sin(t * 1.5 + b.ph) * 12 * dt; }
     ambientBubbles = ambientBubbles.filter((b) => b.y > -20);
+
+    // The scrollbar thumb is pure screen-space input. Fish and camera motion
+    // must never pull it away from the pointer.
+    if (pointer.seen) paddle.x = clamp(pointer.x - PADDLE_W / 2, ARROW_W, VW - ARROW_W - PADDLE_W);
     paddle.glow = Math.max(0, paddle.glow - dt * 3);
 
     if (state === 'play' && level) {
@@ -547,20 +546,6 @@
         fish.y = PADDLE_Y - fish.r - 2 + Math.sin(t * 3) * 3;
         fish.face = 1; fish.tilt = 0;
       } else {
-        // Keep the platform completely fixed through the launch itself. It only
-        // unlocks once the fish has visibly separated from the platform.
-        if (platformLocked && fish.y < PADDLE_Y - fish.r - 70) {
-          platformLocked = false;
-          pointer.seen = false;
-        }
-        const fishScreenX = fish.x - camX;
-        const platformLeash = Math.min(PADDLE_LEASH, VW * 0.32);
-        if (!platformLocked) {
-          const desiredCentre = pointer.seen ? pointer.x : paddle.x + PADDLE_W / 2;
-          const tetheredCentre = clamp(desiredCentre, fishScreenX - platformLeash, fishScreenX + platformLeash);
-          paddle.x = clamp(tetheredCentre - PADDLE_W / 2, ARROW_W, VW - ARROW_W - PADDLE_W);
-        }
-
         const steps = Math.ceil((fish.speed * dt) / 7);
         for (let i = 0; i < steps; i++) stepFish(dt / steps);
         if (Math.abs(fish.vx) > 20) fish.face = fish.vx > 0 ? 1 : -1;
@@ -575,11 +560,6 @@
         if (fishViewX < leftZone) camX = clamp(fish.x - leftZone, 0, maxCam);
         else if (fishViewX > rightZone) camX = clamp(fish.x - rightZone, 0, maxCam);
 
-        const followedFishX = fish.x - camX;
-        if (!platformLocked) {
-          const followedCentre = clamp(paddle.x + PADDLE_W / 2, followedFishX - platformLeash, followedFishX + platformLeash);
-          paddle.x = clamp(followedCentre - PADDLE_W / 2, ARROW_W, VW - ARROW_W - PADDLE_W);
-        }
         runDistance = Math.max(runDistance, fish.x - runStartX);
 
         for (const p of level.pearls) {
@@ -1045,7 +1025,7 @@
 
   // test hook (only with ?debug in the URL)
   if (/[?&]debug\b/.test(location.search)) {
-    window.__aqua = { get fish() { return fish; }, get paddle() { return paddle; }, get platformLocked() { return platformLocked; }, get camX() { return camX; }, get VW() { return VW; }, get S() { return S; }, get OY() { return OY; }, get state() { return state; }, get score() { return score; }, get distance() { return runDistance; }, get level() { return level; } };
+    window.__aqua = { get fish() { return fish; }, get paddle() { return paddle; }, get camX() { return camX; }, get VW() { return VW; }, get S() { return S; }, get OY() { return OY; }, get state() { return state; }, get score() { return score; }, get distance() { return runDistance; }, get level() { return level; } };
   }
 
   window.addEventListener('resize', resize);
