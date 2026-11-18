@@ -21,13 +21,16 @@ Unzip it and open `index.html`; no install or server is needed.
 | Pause / resume | Space, P, Esc, or the Pause button |
 | Toggle sound | M or the Sound button |
 
-The platform tracks the mouse or drag position directly, both before and after
-launch. Fish movement never pulls the platform away from the pointer.
+At the start of each run, the platform stays fixed in the centre. The launch click
+cannot reposition it, and mouse input remains locked until the fish has visibly
+cleared the platform.
 
-The camera shifts the stage around the fish inside a limited viewing zone, so the
-fish never bounces against the browser's left or right side. The scrollbar and its
-platform stay fixed in screen space while the course moves behind them. The top of
-the browser remains active: the fish can still hit it and bounce downward normally.
+After that initial separation, the platform tracks the mouse or drag position
+directly. Fish movement never pulls the platform away from the pointer. The camera
+shifts the stage around the fish inside a limited viewing zone, so the fish never
+bounces against the browser's left or right side. The scrollbar and platform stay
+fixed in screen space while the course moves behind them. The top of the browser
+remains active: the fish can still hit it and bounce downward normally.
 
 If the fish falls past the platform, you lose a life and the entire endless run
 restarts from the beginning. Bricks and pickups return, distance returns to zero,
