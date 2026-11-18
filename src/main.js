@@ -311,7 +311,9 @@
     beginStage();
     sfx.launch();
   }
+  let stageStartScore = 0;
   function beginStage() {
+    stageStartScore = score;
     level = buildLevel(stage);
     camX = 0;
     fish = newFish();
@@ -351,7 +353,16 @@
       setTimeout(() => { if (state === 'over') { show(ui.over, true); sfx.over(); } }, 650);
       return;
     }
-    fish = Object.assign(newFish(), { speed: fish.speed });
+    // restart the stage from the beginning: fresh bricks, pearls and gates,
+    // and the score goes back to what it was when the stage started
+    const speed = fish.speed;
+    level = buildLevel(stage);
+    camX = 0;
+    score = stageStartScore;
+    fish = Object.assign(newFish(), { speed });
+    particles = [];
+    texts = [];
+    addText(VW / 2, VH * 0.35, 'Back to the start', '#ffffff', 40, true);
   }
   function stageClear() {
     state = 'clear';

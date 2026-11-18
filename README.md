@@ -21,6 +21,10 @@ along, smash glass bricks, slip through the gaps in the pillars and reach the go
 The edges of the screen push the fish forward as you scroll, but you can't push it
 through a wall. Break the bricks or bounce it through a gap first.
 
+If the fish falls past the platform you lose a life and the stage restarts from the
+beginning: bricks and pearls come back and your score goes back to what it was
+when the stage started.
+
 ## Scoring
 
 - Glass brick: 50 points (100 for the double-rim tough ones)
