@@ -22,9 +22,10 @@ Unzip it and open `index.html`; no install or server is needed.
 | Toggle sound | M or the Sound button |
 
 Before launch, both the platform and course are locked at the real starting
-position. This prevents moving the view forward before releasing the fish.
+position. The launch click cannot reposition the platform: it stays fixed until
+the fish has visibly risen clear of it, and pre-launch mouse input is discarded.
 
-After launch, the platform is tethered to the fish. The mouse can only move it a
+After that initial separation, the platform is tethered to the fish. The mouse can only move it a
 set distance from the fish; when the fish moves beyond that distance it drags the
 platform back with it. The camera follows the fish inside a limited viewing zone,
 so the fish never bounces against the browser's left, right, or top edge. Visible

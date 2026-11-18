@@ -163,6 +163,7 @@
   let level = null;
   let camX = 0;
   let paddle = { x: 400, glow: 0 };
+  let platformLocked = true;
   let fish = null;
   let particles = [];
   let texts = [];
@@ -342,6 +343,7 @@
   function resetStageStart() {
     camX = 0;
     paddle.x = VW / 2 - PADDLE_W / 2;
+    platformLocked = true;
     pointer.seen = false;
     holdScroll = 0;
   }
@@ -363,6 +365,9 @@
   function launch() {
     if (!fish || fish.launched) return;
     fish.launched = true;
+    // Ignore every mouse position recorded while the platform was locked. The
+    // player must move the pointer again after the fish clears the platform.
+    pointer.seen = false;
     if (!runStartX) runStartX = fish.x;
     const ang = rand(-0.35, 0.35) + 0.25;
     fish.vx = Math.sin(ang) * fish.speed;
@@ -536,11 +541,19 @@
         fish.y = PADDLE_Y - fish.r - 2 + Math.sin(t * 3) * 3;
         fish.face = 1; fish.tilt = 0;
       } else {
-        const desiredCentre = pointer.seen ? pointer.x : paddle.x + PADDLE_W / 2;
+        // Keep the platform completely fixed through the launch itself. It only
+        // unlocks once the fish has visibly separated from the platform.
+        if (platformLocked && fish.y < PADDLE_Y - fish.r - 70) {
+          platformLocked = false;
+          pointer.seen = false;
+        }
         const fishScreenX = fish.x - camX;
         const platformLeash = Math.min(PADDLE_LEASH, VW * 0.32);
-        const tetheredCentre = clamp(desiredCentre, fishScreenX - platformLeash, fishScreenX + platformLeash);
-        paddle.x = clamp(tetheredCentre - PADDLE_W / 2, ARROW_W, VW - ARROW_W - PADDLE_W);
+        if (!platformLocked) {
+          const desiredCentre = pointer.seen ? pointer.x : paddle.x + PADDLE_W / 2;
+          const tetheredCentre = clamp(desiredCentre, fishScreenX - platformLeash, fishScreenX + platformLeash);
+          paddle.x = clamp(tetheredCentre - PADDLE_W / 2, ARROW_W, VW - ARROW_W - PADDLE_W);
+        }
 
         const steps = Math.ceil((fish.speed * dt) / 7);
         for (let i = 0; i < steps; i++) stepFish(dt / steps);
@@ -557,8 +570,10 @@
         else if (fishViewX > rightZone) camX = clamp(fish.x - rightZone, 0, maxCam);
 
         const followedFishX = fish.x - camX;
-        const followedCentre = clamp(paddle.x + PADDLE_W / 2, followedFishX - platformLeash, followedFishX + platformLeash);
-        paddle.x = clamp(followedCentre - PADDLE_W / 2, ARROW_W, VW - ARROW_W - PADDLE_W);
+        if (!platformLocked) {
+          const followedCentre = clamp(paddle.x + PADDLE_W / 2, followedFishX - platformLeash, followedFishX + platformLeash);
+          paddle.x = clamp(followedCentre - PADDLE_W / 2, ARROW_W, VW - ARROW_W - PADDLE_W);
+        }
         runDistance = Math.max(runDistance, fish.x - runStartX);
 
         for (const p of level.pearls) {
@@ -1024,7 +1039,7 @@
 
   // test hook (only with ?debug in the URL)
   if (/[?&]debug\b/.test(location.search)) {
-    window.__aqua = { get fish() { return fish; }, get paddle() { return paddle; }, get camX() { return camX; }, get VW() { return VW; }, get S() { return S; }, get OY() { return OY; }, get state() { return state; }, get score() { return score; }, get distance() { return runDistance; }, get level() { return level; } };
+    window.__aqua = { get fish() { return fish; }, get paddle() { return paddle; }, get platformLocked() { return platformLocked; }, get camX() { return camX; }, get VW() { return VW; }, get S() { return S; }, get OY() { return OY; }, get state() { return state; }, get score() { return score; }, get distance() { return runDistance; }, get level() { return level; } };
   }
 
   window.addEventListener('resize', resize);
